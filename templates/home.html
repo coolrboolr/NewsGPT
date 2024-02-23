@@ -1,0 +1,18 @@
+<!-- home.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>World News Feed</title>
+</head>
+<body>
+    <h1>Latest World News</h1>
+    <div>
+        {% for article in articles %}
+        <article>
+            <h2><a href="{{ article.url }}">{{ article.headline }}</a></h2>
+            <p>{{ article.title }}</p>
+        </article>
+        {% endfor %}
+    </div>
+</body>
+</html>
