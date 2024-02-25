@@ -1,5 +1,4 @@
 import os
-import logging
 
 import requests
 from bs4 import BeautifulSoup
@@ -7,21 +6,18 @@ from openai import OpenAI
 import feedparser
 import praw
 
-logging.basicConfig(filename='scrape.log', level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s')
-
+from models import Article
 
 if os.environ.get('OPENAI_KEY') is None:
     # pull in openai key securely
     with open('pass/OPENAI_KEY', 'r') as f:
         os.environ['OPENAI_KEY'] = f.read()
-        logging.info('OPENAI_KEY is imported from local store')
         print('OPENAI_KEY is imported from local store')
 
 if os.environ.get('REDDIT_API') is None:
     # pull in reddit 
     with open('pass/REDDIT_API', 'r') as f1:
         os.environ['REDDIT_API'] = f1.read()
-        logging.info('REDDIT_API is imported from local store')
         print('REDDIT_API is imported from local store')
 
 
@@ -29,7 +25,6 @@ if os.environ.get('REDDIT_PASS') is None:
     # pull in reddit 
     with open('pass/REDDIT_PASS', 'r') as f1:
         os.environ['REDDIT_PASS'] = f1.read()
-        logging.info('REDDIT_PASS is imported from local store')
         print('REDDIT_PASS is imported from local store')
 
 # set up openai client to be used for chat completion
@@ -37,7 +32,7 @@ openai_client = OpenAI(
     # This is the default and can be omitted
     api_key=os.environ.get('OPENAI_KEY')
 )
-logging.info('OpenAI client created')
+print('OpenAI client created')
 
 # set up reddit parser
 reddit = praw.Reddit(
@@ -47,12 +42,12 @@ reddit = praw.Reddit(
     username='coolrboolr456',
     password=os.environ.get('REDDIT_PASS')
 )
-logging.info('Reddit client created')
+print('Reddit client created')
 
 # pull top articles for /r/worldnews and then get the urls for the bodies be parsed
 def scrape_worldnews():
     articles = []
-    for submission in reddit.subreddit('worldnews').hot(limit=10):  # Adjust limit as needed
+    for submission in reddit.subreddit('worldnews').hot(limit=12):  # Adjust limit as needed
         if 'www.reddit.com' not in submission.url: #remove the internal reddit links
             url = submission.url
 
@@ -67,12 +62,11 @@ def scrape_worldnews():
             })
         else:
             print(f'Just reddit links - internal discussion usually: {submission.title}')
-            logging.info(f'Skipping internal Reddit link: {submission.title}')
     return articles
 
 # process all the article bodies into better short headlines
 def summarize_article(article_content):
-    logging.info(f"Summarizing article: {article_content[:50]}...") 
+    print(f"Summarizing article: {article_content[:50]}...") 
     response = openai_client.chat.completions.create(
     messages=[
         {   'role': 'system', 
@@ -84,18 +78,54 @@ def summarize_article(article_content):
     ],
     model='gpt-3.5-turbo',
 )
-    logging.info(f'Generated summary: {response.choices[0].message.content}')
+    print(f'Generated summary: {response.choices[0].message.content}')
     return response.choices[0].message.content
 
 # pull all the articles and then use summarize article to process the new headlines
-def fetch_and_process_articles():
+def fetch_and_process_articles(db):
     scraped_articles = scrape_worldnews()
+    print('pulled in articles')
     processed_articles = []
+    
     for article in scraped_articles:
-        summary = summarize_article(article['body'])
-        processed_articles.append({'title': article['title'], 'url': article['url'], 'headline': summary,}) #saving the original so we can compare for now, eventually add a summary of the article as well
+        #if the article is present in the db (search by url) then used the the stored headline
+        existing_article = Article.query.filter_by(url=article['url']).first()
+        
+
+        if existing_article and existing_article.headline:
+            print(f'Existing article found: {existing_article}\nTitle: {existing_article.title}')
+            print(f'Existing article headline found: {existing_article.headline}')
+
+            print('Found an existing article and headline, populating without call')
+            processed_articles.append({'title': article['title'],
+                                       'url': article['url'],
+                                       'body' : article['body'], 
+                                       'headline': existing_article.headline}
+                                       )
+        else: # otherwise run the openai call and bring in a headline to be stored
+            print('No headline found, running call')
+            summary = summarize_article(article['body'])
+            processed_articles.append({'title': article['title'], 
+                                    'url': article['url'],
+                                    'body' : article['body'], 
+                                    'headline': summary}
+                                    ) #saving the original so we can compare for now, eventually add a summary of the article as well
+            if existing_article: # if there was just an article but no headline, update the record
+                print('There was an existing article but no headline, updating current line')
+                existing_article.headline = summary
+            else: # if this is a completely new article then add the record to the db
+                print('Net new article, storing in db as new line')
+                new_article = Article(title=article['title'], 
+                                      url=article['url'], 
+                                      body=article['body'], 
+                                      headline=summary)
+                db.session.add(new_article)
+            db.session.commit()
+
     return processed_articles
 
 if __name__ == '__main__':
-    print('pulled in fetch and process')
+    print('Running fetch and process')
     #p_articles = fetch_and_process_articles() # test for interactive console
+else:
+    print('Imported fetch and process')
