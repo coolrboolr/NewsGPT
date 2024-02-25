@@ -7,27 +7,30 @@ from openai import OpenAI
 import feedparser
 import praw
 
-logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s')
+logging.basicConfig(filename='scrape.log', level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s')
+
 
 if os.environ.get('OPENAI_KEY') is None:
     # pull in openai key securely
     with open('pass/OPENAI_KEY', 'r') as f:
         os.environ['OPENAI_KEY'] = f.read()
         logging.info('OPENAI_KEY is imported from local store')
+        print('OPENAI_KEY is imported from local store')
 
-
-if not os.environ.get('REDDIT_API') is None:
+if os.environ.get('REDDIT_API') is None:
     # pull in reddit 
     with open('pass/REDDIT_API', 'r') as f1:
         os.environ['REDDIT_API'] = f1.read()
         logging.info('REDDIT_API is imported from local store')
+        print('REDDIT_API is imported from local store')
 
 
-if not os.environ.get('REDDIT_PASS') is None:
+if os.environ.get('REDDIT_PASS') is None:
     # pull in reddit 
     with open('pass/REDDIT_PASS', 'r') as f1:
         os.environ['REDDIT_PASS'] = f1.read()
         logging.info('REDDIT_PASS is imported from local store')
+        print('REDDIT_PASS is imported from local store')
 
 # set up openai client to be used for chat completion
 openai_client = OpenAI(
@@ -89,7 +92,6 @@ def fetch_and_process_articles():
     scraped_articles = scrape_worldnews()
     processed_articles = []
     for article in scraped_articles:
-        # For simplicity, we're using the article title as content; in practice, fetch the article content
         summary = summarize_article(article['body'])
         processed_articles.append({'title': article['title'], 'url': article['url'], 'headline': summary,}) #saving the original so we can compare for now, eventually add a summary of the article as well
     return processed_articles
