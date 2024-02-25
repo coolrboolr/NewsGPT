@@ -1,31 +1,50 @@
+import os
+import logging
+
 import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
 import feedparser
 import praw
 
-# pull in openai key securely
-with open('OPENAI_KEY', 'r') as f:
-    __openai_key__ = f.read()
+logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s')
 
-# pull in reddit 
-with open('REDDIT_API', 'r') as f1:
-    __reddit_api__ = f1.read()
+if os.environ.get('OPENAI_KEY') is None:
+    # pull in openai key securely
+    with open('pass/OPENAI_KEY', 'r') as f:
+        os.environ['OPENAI_KEY'] = f.read()
+        logging.info('OPENAI_KEY is imported from local store')
+
+
+if not os.environ.get('REDDIT_API') is None:
+    # pull in reddit 
+    with open('pass/REDDIT_API', 'r') as f1:
+        os.environ['REDDIT_API'] = f1.read()
+        logging.info('REDDIT_API is imported from local store')
+
+
+if not os.environ.get('REDDIT_PASS') is None:
+    # pull in reddit 
+    with open('pass/REDDIT_PASS', 'r') as f1:
+        os.environ['REDDIT_PASS'] = f1.read()
+        logging.info('REDDIT_PASS is imported from local store')
 
 # set up openai client to be used for chat completion
 openai_client = OpenAI(
     # This is the default and can be omitted
-    api_key=__openai_key__
+    api_key=os.environ.get('OPENAI_KEY')
 )
+logging.info('OpenAI client created')
 
 # set up reddit parser
 reddit = praw.Reddit(
     client_id='hR4QiXaef7FinpNaKJ6A4g',
-    client_secret=__reddit_api__,
+    client_secret=os.environ.get('REDDIT_API'),
     user_agent='NewsGPT',
     username='coolrboolr456',
-    password='Cr4zyeight'
+    password=os.environ.get('REDDIT_PASS')
 )
+logging.info('Reddit client created')
 
 # pull top articles for /r/worldnews and then get the urls for the bodies be parsed
 def scrape_worldnews():
@@ -45,21 +64,24 @@ def scrape_worldnews():
             })
         else:
             print(f'Just reddit links - internal discussion usually: {submission.title}')
+            logging.info(f'Skipping internal Reddit link: {submission.title}')
     return articles
 
 # process all the article bodies into better short headlines
 def summarize_article(article_content):
+    logging.info(f"Summarizing article: {article_content[:50]}...") 
     response = openai_client.chat.completions.create(
     messages=[
         {   'role': 'system', 
-            'content': 'You are an expert researcher, use your knowledge about the world the accurate and precisely distill the article below. Your goal is ensure the reader knows exactly what the article is about by it\'s new headline'},
+            'content': 'You are an expert researcher, use your knowledge about the world to accurately and precisely distill the article below. Your goal is ensure the reader knows exactly what the article is about by it\'s new headline'},
         {
             'role': 'user',
-            'content': f'Create a new headline for the article below. Use less than 10 words. \n\narticle: {article_content}',
+            'content': f'Create a new headline for the article below. Use less than 14 words. \n\narticle: {article_content}',
         }
     ],
     model='gpt-3.5-turbo',
 )
+    logging.info(f'Generated summary: {response.choices[0].message.content}')
     return response.choices[0].message.content
 
 # pull all the articles and then use summarize article to process the new headlines
