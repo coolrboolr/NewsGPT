@@ -33,7 +33,7 @@ app = Flask(__name__)
 #set environment variables
 #app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 
-db_uri = f'mysql+pymysql://root:{os.environ.get('GOOGLE_SQL')}@localhost/newsgpt-articles?unix_socket=/cloudsql/{os.environ.get('DB_CONN_NAME')}' 
+db_uri = f'mysql+pymysql://root:{os.environ.get('GOOGLE_SQL')}@localhost/newsgpt_articles?unix_socket=/cloudsql/{os.environ.get('DB_CONN_NAME')}' 
 
 app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -52,7 +52,29 @@ def home():
         print(f'fetch and process failed in app generation\n\n {e}')
         articles = [
             {'title':'oops', 
-             'url': 'www.google.com', 
+             'url': 'up', 
+             'headline' : 'needs work'}
+             ]
+        e_type, e_object, e_traceback = sys.exc_info()
+        e_filename = os.path.split(e_traceback.tb_frame.f_code.co_filename)[1]
+        e_message = str(e)
+        e_line_number = e_traceback.tb_lineno
+
+        print(f'exception type: {e_type}')
+        print(f'exception filename: {e_filename}')
+        print(f'exception line number: {e_line_number}')
+        print(f'exception message: {e_message}')
+    return render_template('home-new.html', articles=articles)
+
+@app.route('/raw')
+def raw():
+    try:
+        articles = fetch_and_process_articles(db)
+    except Exception as e:
+        print(f'fetch and process failed in app generation\n\n {e}')
+        articles = [
+            {'title':'oops', 
+             'url': 'up', 
              'headline' : 'needs work'}
              ]
         e_type, e_object, e_traceback = sys.exc_info()

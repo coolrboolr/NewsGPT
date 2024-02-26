@@ -53,7 +53,9 @@ def scrape_worldnews():
 
             r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
             soup = BeautifulSoup(r.content,'html.parser')
-            article_body = soup.text
+            article_body_raw = soup.text.replace('\n','')
+            article_body = article_body_raw.encode('utf-8', 'ignore').decode('utf-8') #cleaning non utf8 characters
+
             articles.append({
                 'title': submission.title,
                 'url': submission.url,
@@ -66,7 +68,7 @@ def scrape_worldnews():
 
 # process all the article bodies into better short headlines
 def summarize_article(article_content):
-    print(f"Summarizing article: {article_content[:50]}...") 
+    print(f"Summarizing article: {article_content.replace('\n','')[:50]}...") 
     response = openai_client.chat.completions.create(
     messages=[
         {   'role': 'system', 
@@ -93,8 +95,9 @@ def fetch_and_process_articles(db):
         
 
         if existing_article and existing_article.headline:
-            print(f'Existing article found: {existing_article}\nTitle: {existing_article.title}')
-            print(f'Existing article headline found: {existing_article.headline}')
+            print(f'Existing article found')
+            print(f'Title: {existing_article.title}')
+            print(f'Headline: {existing_article.headline}')
 
             print('Found an existing article and headline, populating without call')
             processed_articles.append({'title': article['title'],
@@ -114,12 +117,15 @@ def fetch_and_process_articles(db):
                 print('There was an existing article but no headline, updating current line')
                 existing_article.headline = summary
             else: # if this is a completely new article then add the record to the db
-                print('Net new article, storing in db as new line')
-                new_article = Article(title=article['title'], 
-                                      url=article['url'], 
-                                      body=article['body'], 
-                                      headline=summary)
-                db.session.add(new_article)
+                try:
+                    print('Net new article, storing in db as new line')
+                    new_article = Article(title=article['title'], 
+                                        url=article['url'], 
+                                        body=article['body'], 
+                                        headline=summary)
+                    db.session.add(new_article)
+                except Exception as e: 
+                    print(f'Failed adding {article['title']}')
             db.session.commit()
 
     return processed_articles
