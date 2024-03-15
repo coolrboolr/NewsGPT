@@ -8,11 +8,11 @@ import praw
 
 from models import Article
 
-if os.environ.get('OPENAI_KEY') is None:
+if os.environ.get('OPENAI_API_KEY') is None:
     # pull in openai key securely
-    with open('pass/OPENAI_KEY', 'r') as f:
-        os.environ['OPENAI_KEY'] = f.read()
-        print('OPENAI_KEY is imported from local store')
+    with open('pass/OPENAI_API_KEY', 'r') as f:
+        os.environ['OPENAI_API_KEY'] = f.read()
+        print('OPENAI_API_KEY is imported from local store')
 
 if os.environ.get('REDDIT_API') is None:
     # pull in reddit 
@@ -28,10 +28,7 @@ if os.environ.get('REDDIT_PASS') is None:
         print('REDDIT_PASS is imported from local store')
 
 # set up openai client to be used for chat completion
-openai_client = OpenAI(
-    # This is the default and can be omitted
-    api_key=os.environ.get('OPENAI_KEY')
-)
+openai_client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
 print('OpenAI client created')
 
 # set up reddit parser
@@ -56,14 +53,42 @@ def scrape_worldnews():
             article_body_raw = soup.text.replace('\n','')
             article_body = article_body_raw.encode('utf-8', 'ignore').decode('utf-8') #cleaning non utf8 characters
 
-            articles.append({
-                'title': submission.title,
-                'url': submission.url,
-                'body': article_body
-                
-            })
+            if len(article_body) > 1000:
+                articles.append({
+                    'title': submission.title,
+                    'url': submission.url,
+                    'body': article_body
+                    })
+            else:
+                print(f'Too short - body scrape needs revision Title : {submission.title}\nurl: {submission.url}')
+
         else:
             print(f'Just reddit links - internal discussion usually: {submission.title}')
+    return articles
+
+def scrape_rss(url):
+    feed = feedparser.parse(url)
+    articles = []
+    # Loop through the first 10 entries
+    for entry in feed.entries[:10]:
+        title = entry.title
+        url = entry.link
+
+        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        soup = BeautifulSoup(r.content,'html.parser')
+        article_body_raw = soup.text.replace('\n','')
+        article_body = article_body_raw.encode('utf-8', 'ignore').decode('utf-8') #cleaning non utf8 characters
+
+        if len(article_body) > 1000:
+            articles.append({
+                'title': title,
+                'url': url,
+                'body': article_body
+                })
+            print(f'pulled article from rss feed at {url}')
+        else:
+            print(f'Too short - body scrape needs revision Title : {title}\nurl: {url}')
+
     return articles
 
 # process all the article bodies into better short headlines
@@ -80,12 +105,19 @@ def summarize_article(article_content):
     ],
     model='gpt-3.5-turbo',
 )
-    print(f'Generated summary: {response.choices[0].message.content}')
-    return response.choices[0].message.content
+    new_headline = response.choices[0].message.content
+    if (new_headline[0] == '"') & (new_headline[-1] == '"') :
+        new_headline = new_headline[1:-1]
+
+    print(f'Generated summary: {new_headline}')
+    return new_headline
 
 # pull all the articles and then use summarize article to process the new headlines
-def fetch_and_process_articles(db):
-    scraped_articles = scrape_worldnews()
+def fetch_and_process_articles(db, scrape_url='world_news'):
+    if scrape_url == 'world_news':
+        scraped_articles = scrape_worldnews()
+    else:
+        scraped_articles = scrape_rss(scrape_url)
     print('pulled in articles')
     processed_articles = []
     
@@ -132,6 +164,9 @@ def fetch_and_process_articles(db):
 
 if __name__ == '__main__':
     print('Running fetch and process')
+    #rss_feed = 'https://feeds.bbci.co.uk/news/world/rss.xml'
+    #a = scrape_rss(rss_feed)
+    #print(a)
     #p_articles = fetch_and_process_articles() # test for interactive console
 else:
     print('Imported fetch and process')

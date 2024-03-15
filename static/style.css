@@ -1,0 +1,57 @@
+body {
+    background: #c6dcba;
+    padding: 0 24px;
+    color: rgb(255, 255, 255); /* Change my color to yellow */
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: left;
+    align-items: flex-start;
+    font-family: Garamond, 'Times New Roman', serif;
+  }
+  
+  .container {
+      display: flex;
+      min-height: 100vh;
+  }
+  
+  .categories {
+      flex-basis: 20%; /* Adjust based on desired width */
+      background: #83dfc0; /* Light background for the categories */
+      padding: 20px; /* Spacing around category links */
+  }
+  
+  .main-content {
+      flex-grow: 1; /* Takes up remaining space */
+      padding: 80px; /* Spacing inside the main content area */
+  }
+  
+  .main-content h1, .main-content article {
+      color: #676f54; /* Dark text for better readability */
+      margin-bottom: 20px; /* Spacing between articles */
+  }
+  
+  .main-content p1, .main-content article {
+      color: #2f3327; /* Dark text for better readability */
+      margin-bottom: 20px; /* Spacing between articles */
+  }
+  
+  .categories h1 {
+    color: #7c162c;
+    margin-top: 40px;
+  }
+  
+  .categories ul {
+      list-style-type: none; /* Remove default list styling */
+      padding: 0;
+  }
+  
+  .categories li a {
+      color: #6c464e; /* Dark text for better readability */
+      text-decoration: none; /* Remove underline from links */
+  }
+  
+  .categories li a:hover {
+      text-decoration: underline; /* Underline on hover for links */
+  }
+  
