@@ -190,7 +190,7 @@ if __name__ == '__main__':
     p = Prisma(auto_register=True)
     p.connect()
     for key in cat.keys():
-        fetch_and_process_articles(cat[key])
+        fetch_and_process_articles(key)
     p.disconnect()
     #rss_feed = 'https://feeds.bbci.co.uk/news/world/rss.xml'
     #a = scrape_rss(rss_feed)
