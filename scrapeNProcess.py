@@ -76,7 +76,8 @@ def scrape_worldnews():
     return articles
 
 
-def scrape_rss(url):
+def scrape_rss(cat_key):
+    url = cat[cat_key]
     feed = feedparser.parse(url)
     articles = []
     # Loop through the first 10 entries
@@ -95,6 +96,7 @@ def scrape_rss(url):
                 'title': title,
                 'url': url,
                 'body': article_body,
+                'category' : cat_key
             })
             print(f'pulled article from rss feed at {url}')
         else:
@@ -135,7 +137,7 @@ def fetch_and_process_articles(cat_key='world_news'):
     if cat_key == 'world_news':
         scraped_articles = scrape_worldnews()
     else:
-        scraped_articles = scrape_rss(cat[cat_key])
+        scraped_articles = scrape_rss(cat_key)
     print('pulled in articles')
     processed_articles = []
 
