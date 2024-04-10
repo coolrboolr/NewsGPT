@@ -40,6 +40,10 @@ reddit = praw.Reddit(
 )
 print('Reddit client created')
 
+cat = {'world_news'     : 'world_news', 
+       'bbc_world'      : 'https://feeds.bbci.co.uk/news/world/rss.xml', 
+       'bbc_business'   : 'https://feeds.bbci.co.uk/news/business/rss.xml'}
+
 
 # pull top articles for /r/worldnews and then get the urls for the bodies be parsed
 def scrape_worldnews():
@@ -59,6 +63,7 @@ def scrape_worldnews():
                     'title': submission.title,
                     'url': submission.url,
                     'body': article_body,
+                    'category' : 'world_news'
                 })
             else:
                 print(
@@ -126,11 +131,11 @@ def summarize_article(article_content):
 
 
 # pull all the articles and then use summarize article to process the new headlines
-def fetch_and_process_articles(scrape_url='world_news'):
-    if scrape_url == 'world_news':
+def fetch_and_process_articles(cat_key='world_news'):
+    if cat_key == 'world_news':
         scraped_articles = scrape_worldnews()
     else:
-        scraped_articles = scrape_rss(scrape_url)
+        scraped_articles = scrape_rss(cat[cat_key])
     print('pulled in articles')
     processed_articles = []
 
@@ -173,7 +178,7 @@ def fetch_and_process_articles(scrape_url='world_news'):
                         'headline': summary,
                     })
                 except Exception as e:
-                    print(f'Failed adding', article["title"], 'due to exception:', e)
+                    print(f'Failed adding {article["title"]} due to exception:\n{e}')
 
     return processed_articles
 
@@ -182,7 +187,8 @@ if __name__ == '__main__':
     print('Running fetch and process')
     p = Prisma(auto_register=True)
     p.connect()
-    fetch_and_process_articles()
+    for key in cat.keys():
+        fetch_and_process_articles(cat[key])
     p.disconnect()
     #rss_feed = 'https://feeds.bbci.co.uk/news/world/rss.xml'
     #a = scrape_rss(rss_feed)
