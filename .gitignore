@@ -7,3 +7,6 @@ logs/
 notes
 worldnews.html
 .python-version
+__pycache__/
+/setup.cfg
+venv/

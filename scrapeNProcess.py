@@ -3,10 +3,10 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
+from prisma import Prisma
+from prisma.models import Article
 import feedparser
 import praw
-
-from models import Article
 
 if os.environ.get('OPENAI_API_KEY') is None:
     # pull in openai key securely
@@ -116,7 +116,8 @@ def summarize_article(article_content):
         }],
         model='gpt-3.5-turbo',
     )
-    new_headline = response.choices[0].message.content
+    if not (new_headline := response.choices[0].message.content):
+        raise RuntimeError('No response from ChatGPT')
     if (new_headline[0] == '"') and (new_headline[-1] == '"'):
         new_headline = new_headline[1:-1]
 
@@ -125,7 +126,7 @@ def summarize_article(article_content):
 
 
 # pull all the articles and then use summarize article to process the new headlines
-def fetch_and_process_articles(db, scrape_url='world_news'):
+def fetch_and_process_articles(scrape_url='world_news'):
     if scrape_url == 'world_news':
         scraped_articles = scrape_worldnews()
     else:
@@ -135,7 +136,7 @@ def fetch_and_process_articles(db, scrape_url='world_news'):
 
     for article in scraped_articles:
         #if the article is present in the db (search by url) then used the the stored headline
-        existing_article = Article.query.filter_by(url=article['url']).first()
+        existing_article = Article.prisma().find_unique({'url': article['url']})
 
         if existing_article and existing_article.headline:
             print(f'Existing article found')
@@ -165,25 +166,24 @@ def fetch_and_process_articles(db, scrape_url='world_news'):
             else:  # if this is a completely new article then add the record to the db
                 try:
                     print('Net new article, storing in db as new line')
-                    new_article = Article(
-                        title=article['title'],
-                        url=article['url'],
-                        body=article['body'],
-                        headline=summary
-                    )
-                    db.session.add(new_article)
+                    Article.prisma().create({
+                        'title': article['title'],
+                        'url': article['url'],
+                        'body': article['body'],
+                        'headline': summary,
+                    })
                 except Exception as e:
-                    print(f'Failed adding {article["title"]}')
-            db.session.commit()
+                    print(f'Failed adding', article["title"], 'due to exception:', e)
 
     return processed_articles
 
 
 if __name__ == '__main__':
     print('Running fetch and process')
+    p = Prisma(auto_register=True)
+    p.connect()
+    fetch_and_process_articles()
+    p.disconnect()
     #rss_feed = 'https://feeds.bbci.co.uk/news/world/rss.xml'
     #a = scrape_rss(rss_feed)
     #print(a)
-    #p_articles = fetch_and_process_articles() # test for interactive console
-else:
-    print('Imported fetch and process')

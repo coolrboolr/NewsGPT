@@ -12,12 +12,5 @@
 # below:
 .git
 .gitignore
-pass/
-logs/
-scrape.log
-app.log
-# Python pycache:
-__pycache__/
-# Ignored by the build system
-/setup.cfg
-venv/
+
+#!include:.gitignore
