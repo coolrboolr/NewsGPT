@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from openai import OpenAI
 from prisma import Prisma
 from prisma.models import Article
+from prisma.types import ArticleCreateInput
 import feedparser
 import praw
 
@@ -40,14 +41,16 @@ reddit = praw.Reddit(
 )
 print('Reddit client created')
 
-cat = {'world_news'     : 'world_news', 
-       'bbc_world'      : 'https://feeds.bbci.co.uk/news/world/rss.xml', 
-       'bbc_business'   : 'https://feeds.bbci.co.uk/news/business/rss.xml'}
+cat = {
+    'world_news': 'world_news',
+    'bbc_world': 'https://feeds.bbci.co.uk/news/world/rss.xml',
+    'bbc_business': 'https://feeds.bbci.co.uk/news/business/rss.xml',
+}
 
 
 # pull top articles for /r/worldnews and then get the urls for the bodies be parsed
-def scrape_worldnews():
-    articles = []
+def scrape_worldnews() -> list[ArticleCreateInput]:
+    articles: list[ArticleCreateInput] = []
     for submission in reddit.subreddit('worldnews').hot(limit=12):  # Adjust limit as needed
         if 'www.reddit.com' not in submission.url:  #remove the internal reddit links
             url = submission.url
@@ -63,7 +66,7 @@ def scrape_worldnews():
                     'title': submission.title,
                     'url': submission.url,
                     'body': article_body,
-                    'category' : 'world_news'
+                    'category': 'world_news',
                 })
             else:
                 print(
@@ -76,10 +79,10 @@ def scrape_worldnews():
     return articles
 
 
-def scrape_rss(cat_key):
+def scrape_rss(cat_key) -> list[ArticleCreateInput]:
     url = cat[cat_key]
     feed = feedparser.parse(url)
-    articles = []
+    articles: list[ArticleCreateInput] = []
     # Loop through the first 10 entries
     for entry in feed.entries[:10]:
         title = entry.title
@@ -96,7 +99,7 @@ def scrape_rss(cat_key):
                 'title': title,
                 'url': url,
                 'body': article_body,
-                'category' : cat_key
+                'category': cat_key,
             })
             print(f'pulled article from rss feed at {url}')
         else:
@@ -178,6 +181,7 @@ def fetch_and_process_articles(cat_key='world_news'):
                         'url': article['url'],
                         'body': article['body'],
                         'headline': summary,
+                        'category': article['category'],
                     })
                 except Exception as e:
                     print(f'Failed adding {article["title"]} due to exception:\n{e}')
