@@ -8,6 +8,7 @@ from prisma.models import Article
 from prisma.types import ArticleCreateInput
 import feedparser
 import praw
+import json
 
 if os.environ.get('OPENAI_API_KEY') is None:
     # pull in openai key securely
@@ -15,81 +16,58 @@ if os.environ.get('OPENAI_API_KEY') is None:
         os.environ['OPENAI_API_KEY'] = f.read()
         print('OPENAI_API_KEY is imported from local store')
 
-if os.environ.get('REDDIT_API') is None:
-    # pull in reddit
-    with open('pass/REDDIT_API', 'r') as f1:
-        os.environ['REDDIT_API'] = f1.read()
-        print('REDDIT_API is imported from local store')
-
-if os.environ.get('REDDIT_PASS') is None:
-    # pull in reddit
-    with open('pass/REDDIT_PASS', 'r') as f1:
-        os.environ['REDDIT_PASS'] = f1.read()
-        print('REDDIT_PASS is imported from local store')
-
 # set up openai client to be used for chat completion
 openai_client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
 print('OpenAI client created')
 
-# set up reddit parser
-reddit = praw.Reddit(
-    client_id='hR4QiXaef7FinpNaKJ6A4g',
-    client_secret=os.environ.get('REDDIT_API'),
-    user_agent='NewsGPT',
-    username='coolrboolr456',
-    password=os.environ.get('REDDIT_PASS')
-)
-print('Reddit client created')
-
 cat = {
-    'world_news': 'world_news',
-    'bbc_world': 'https://feeds.bbci.co.uk/news/world/rss.xml',
-    'bbc_business': 'https://feeds.bbci.co.uk/news/business/rss.xml',
+    'world_news': {'source': None, 'category': None, 'keyword': None, 'country': 'us'},
+    'bbc_world': {'source': 'bbc-news', 'category': None, 'keyword': None, 'country': None},
+    'bbc_business': {'source': 'bbc-news', 'category': 'business', 'keyword': None, 'country': None},
+    'cnn_latest': {'source': 'cnn', 'category': None, 'keyword': None, 'country': None},
 }
 
+def scrape_newsapi(cat_key) -> list[ArticleCreateInput]:
+    config = cat.get(cat_key, {})
+    source=config.get('source')
+    category=config.get('category')
+    keyword=config.get('keyword')
+    country=config.get('country')
+        
+    base_url = "https://newsapi.org/v2/top-headlines?"
+    params = []
 
-# pull top articles for /r/worldnews and then get the urls for the bodies be parsed
-def scrape_worldnews() -> list[ArticleCreateInput]:
-    articles: list[ArticleCreateInput] = []
-    for submission in reddit.subreddit('worldnews').hot(limit=12):  # Adjust limit as needed
-        if 'www.reddit.com' not in submission.url:  #remove the internal reddit links
-            url = submission.url
+    # Construct query based on provided filters
+    if country:
+        params.append(f"country={country}")
+    if category:
+        params.append(f"category={category}")
+    if keyword:
+        params.append(f"q={keyword}")
+    if source:
+        params.append(f"sources={source}")
+    
+    if not params:
+        raise ValueError("You must provide at least one filter: country, category, keyword, or source.")
 
-            r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-            soup = BeautifulSoup(r.content, 'html.parser')
-            article_body_raw = soup.text.replace('\n', '')
-            #cleaning non utf8 characters
-            article_body = article_body_raw.encode('utf-8', 'ignore').decode('utf-8')
-
-            if len(article_body) > 1000:
-                articles.append({
-                    'title': submission.title,
-                    'url': submission.url,
-                    'body': article_body,
-                    'category': 'world_news',
-                })
-            else:
-                print(
-                    'Too short - body scrape needs revision Title : '
-                    f'{submission.title}\nurl: {submission.url}'
-                )
-
-        else:
-            print(f'Just reddit links - internal discussion usually: {submission.title}')
-    return articles
-
-
-def scrape_rss(cat_key) -> list[ArticleCreateInput]:
-    url = cat[cat_key]
-    feed = feedparser.parse(url)
+    # Combine parameters to form the final URL
+    url = base_url + '&'.join(params)
+    url += f"&apiKey={os.environ.get('NEWSAPIKEY')}"
+    
+    r = requests.get(url)
+    feed = json.loads(r.text)['articles']
     articles: list[ArticleCreateInput] = []
     # Loop through the first 10 entries
-    for entry in feed.entries[:10]:
-        title = entry.title
-        url = entry.link
+    for entry in feed[:10]:
+        title = entry['title']
+        url = entry['url']
+        published = entry['publishedAt']
 
+        # Because you have the begining of the article with this \
+        # method you can zone in on the element that has the body of the article
         r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
         soup = BeautifulSoup(r.content, 'html.parser')
+
         article_body_raw = soup.text.replace('\n', '')
         #cleaning non utf8 characters
         article_body = article_body_raw.encode('utf-8', 'ignore').decode('utf-8')
@@ -137,10 +115,9 @@ def summarize_article(article_content):
 
 # pull all the articles and then use summarize article to process the new headlines
 def fetch_and_process_articles(cat_key='world_news'):
-    if cat_key == 'world_news':
-        scraped_articles = scrape_worldnews()
-    else:
-        scraped_articles = scrape_rss(cat_key)
+    
+    scraped_articles = scrape_newsapi(cat_key)
+
     print('pulled in articles')
     processed_articles = []
 
@@ -191,11 +168,12 @@ def fetch_and_process_articles(cat_key='world_news'):
 
 if __name__ == '__main__':
     print('Running fetch and process')
-    p = Prisma(auto_register=True)
-    p.connect()
-    for key in cat.keys():
-        fetch_and_process_articles(key)
-    p.disconnect()
-    #rss_feed = 'https://feeds.bbci.co.uk/news/world/rss.xml'
-    #a = scrape_rss(rss_feed)
-    #print(a)
+    # p = Prisma(auto_register=False)
+    # p.connect()
+    # for key in cat.keys():
+    #     fetch_and_process_articles(key)
+    # p.disconnect()
+    
+    
+
+    p = fetch_and_process_articles('bbc_world')

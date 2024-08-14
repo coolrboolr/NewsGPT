@@ -94,7 +94,7 @@ if __name__ == "__main__":
     try: 
         #main()
         print('hi!')
-        a = fetch_articles('')
+        a = fetch_articles('world_news')
         docs = [article.body for article in a]
         topics, probs, topic_names = perform_topic_modeling(docs)
         print("Article categories updated.")

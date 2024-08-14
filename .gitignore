@@ -10,3 +10,5 @@ worldnews.html
 __pycache__/
 /setup.cfg
 venv/
+.env
+tests/
